@@ -219,16 +219,76 @@ void ClientWidget::showStats()
 
 void ClientWidget::exportPDF()
 {
-    QString fileName = QFileDialog::getSaveFileName(this, "Exporter en PDF", "", "Fichiers PDF (*.pdf)");
+    QString fileName = QFileDialog::getSaveFileName(this, "Export PDF", "", "*.pdf");
     if (fileName.isEmpty())
         return;
 
+    if (!fileName.endsWith(".pdf"))
+        fileName += ".pdf";
+
     QPdfWriter writer(fileName);
+    writer.setPageSize(QPageSize(QPageSize::A4));
+    writer.setResolution(300);
+
     QPainter painter(&writer);
+    if (!painter.isActive())
+    {
+        QMessageBox::warning(this, "Erreur", "Impossible de créer le PDF.");
+        return;
+    }
 
-    painter.drawText(100, 100, "Export des clients - Exemple PDF");
-    // TODO: Add table export here
+    int margin = 80;
+    int y = margin;
+
+    QFont titleFont("Helvetica", 14, QFont::Bold);
+    painter.setFont(titleFont);
+    painter.drawText(margin, y, "Liste des Clients");
+    y += 80;
+
+    QFont headerFont("Helvetica", 10, QFont::Bold);
+    painter.setFont(headerFont);
+
+    // Draw headers
+    int x = margin;
+    for (int col = 0; col < model->columnCount(); ++col)
+    {
+        QString header = model->headerData(col, Qt::Horizontal).toString();
+        if (header == "nom")
+            painter.drawText(x, y, "Nom");
+        else if (header == "prenom")
+            painter.drawText(x, y, "Prénom");
+        else if (header == "adresse")
+            painter.drawText(x, y, "Adresse");
+        else if (header == "telephone")
+            painter.drawText(x, y, "Téléphone");
+        x += 200;
+    }
+
+    y += 80;
+
+    QFont cellFont("Helvetica", 9);
+    painter.setFont(cellFont);
+
+    // Draw table rows
+    for (int row = 0; row < model->rowCount(); ++row)
+    {
+        x = margin;
+        for (int col = 0; col < model->columnCount(); ++col)
+        {
+            QString data = model->data(model->index(row, col)).toString();
+            painter.drawText(x, y, data);
+            x += 200;
+        }
+        y += 80;
+
+        // handle page break
+        if (y > writer.height() - margin)
+        {
+            writer.newPage();
+            y = margin + 80;
+        }
+    }
+
     painter.end();
-
-    QMessageBox::information(this, "Export PDF", "Export PDF terminé avec succès !");
+    QMessageBox::information(this, "Succès", "PDF exporté : " + fileName);
 }

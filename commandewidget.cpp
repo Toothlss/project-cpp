@@ -17,6 +17,10 @@
 #include <QComboBox>
 #include <QAbstractItemView>
 #include <QLineEdit>
+#include <QtWidgets/QFileDialog>
+#include <QtGui/QPdfWriter>
+#include <QtGui/QPainter>
+#include <QtGui/QPageSize>
 
 CommandeWidget::CommandeWidget(QWidget *parent)
     : QWidget(parent), ui(new Ui::CommandeWidget), model(nullptr)
@@ -139,7 +143,57 @@ void CommandeWidget::showStats()
 
 void CommandeWidget::exportPDF()
 {
-    QMessageBox::information(this, "Export PDF", "Export PDF à implémenter.");
+    QString fileName = QFileDialog::getSaveFileName(this, "Exporter en PDF", "", "Fichiers PDF (*.pdf)");
+    if (fileName.isEmpty())
+        return;
+
+    QPdfWriter writer(fileName);
+    writer.setPageSize(QPageSize(QPageSize::A4));
+    QPainter painter(&writer);
+    if (!painter.isActive())
+    {
+        QMessageBox::warning(this, "Erreur", "Impossible d'ouvrir le fichier PDF pour l'écriture.");
+        return;
+    }
+
+    int left = 100, top = 100;
+    int rowHeight = 80;
+    int colWidth = 180;
+    int x = left, y = top;
+
+    // Draw table headers
+    QFont boldFont = painter.font();
+    boldFont.setBold(true);
+    painter.setFont(boldFont);
+    for (int col = 0; col < model->columnCount(); ++col)
+    {
+        QString header = model->headerData(col, Qt::Horizontal).toString();
+        painter.drawText(x, y, colWidth, rowHeight, Qt::AlignCenter, header);
+        x += colWidth;
+    }
+    painter.setFont(QFont());
+    y += rowHeight;
+
+    // Draw table rows
+    for (int row = 0; row < model->rowCount(); ++row)
+    {
+        x = left;
+        for (int col = 0; col < model->columnCount(); ++col)
+        {
+            QString cell = model->data(model->index(row, col)).toString();
+            painter.drawText(x, y, colWidth, rowHeight, Qt::AlignCenter, cell);
+            x += colWidth;
+        }
+        y += rowHeight;
+        if (y > writer.height() - rowHeight)
+        {
+            writer.newPage();
+            y = top + rowHeight;
+        }
+    }
+
+    painter.end();
+    QMessageBox::information(this, "Export PDF", "Export PDF terminé avec succès !");
 }
 
 void CommandeWidget::addCommande()
