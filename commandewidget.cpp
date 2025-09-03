@@ -21,6 +21,8 @@
 #include <QtGui/QPdfWriter>
 #include <QtGui/QPainter>
 #include <QtGui/QPageSize>
+#include <QLocale>
+#include <QFontMetrics>
 
 CommandeWidget::CommandeWidget(QWidget *parent)
     : QWidget(parent), ui(new Ui::CommandeWidget), model(nullptr)
@@ -143,57 +145,230 @@ void CommandeWidget::showStats()
 
 void CommandeWidget::exportPDF()
 {
-    QString fileName = QFileDialog::getSaveFileName(this, "Exporter en PDF", "", "Fichiers PDF (*.pdf)");
+    QString fileName = QFileDialog::getSaveFileName(this, tr("Exporter en PDF"), "", tr("Fichiers PDF (*.pdf)"));
     if (fileName.isEmpty())
         return;
+    if (!fileName.endsWith(".pdf", Qt::CaseInsensitive))
+        fileName += ".pdf";
 
     QPdfWriter writer(fileName);
     writer.setPageSize(QPageSize(QPageSize::A4));
+    writer.setResolution(300);
+
     QPainter painter(&writer);
     if (!painter.isActive())
     {
-        QMessageBox::warning(this, "Erreur", "Impossible d'ouvrir le fichier PDF pour l'écriture.");
+        QMessageBox::warning(this, tr("Erreur"), tr("Impossible d'ouvrir le fichier PDF pour l'écriture."));
         return;
     }
 
-    int left = 100, top = 100;
-    int rowHeight = 80;
-    int colWidth = 180;
-    int x = left, y = top;
+    const int margin = 100; // device units (~0.33in at 300dpi)
+    const int pageW = writer.width();
+    const int pageH = writer.height();
+    const int contentW = pageW - 2 * margin;
+    const int cellHPad = 12;
+    const int cellVPad = 10;
 
-    // Draw table headers
-    QFont boldFont = painter.font();
-    boldFont.setBold(true);
-    painter.setFont(boldFont);
-    for (int col = 0; col < model->columnCount(); ++col)
+    // Title
+    int y = margin;
+    QFont titleFont = painter.font();
+    titleFont.setPointSize(titleFont.pointSize() + 4);
+    titleFont.setBold(true);
+    painter.setFont(titleFont);
+    QString title = tr("Liste des commandes");
+    painter.drawText(margin, y, contentW, 60, Qt::AlignCenter, title);
+    y += 70;
+
+    // Prepare columns (prefer known order; fallback to table order)
+    struct Col
     {
-        QString header = model->headerData(col, Qt::Horizontal).toString();
-        painter.drawText(x, y, colWidth, rowHeight, Qt::AlignCenter, header);
-        x += colWidth;
+        int idx;
+        QString header;
+        Qt::Alignment align;
+        double weight;
+        int min;
+    };
+    QList<Col> cols;
+    auto addIfValid = [&](int idx, const QString &header, Qt::Alignment align, double weight, int min)
+    {
+        if (idx >= 0)
+            cols.append(Col{idx, header, align, weight, min});
+    };
+    int cId = model->fieldIndex("id");
+    int cClient = model->fieldIndex("client");
+    int cEtat = model->fieldIndex("etat");
+    int cDate = model->fieldIndex("date");
+    int cMontant = model->fieldIndex("montant");
+
+    if (cId >= 0 || cClient >= 0 || cEtat >= 0 || cDate >= 0 || cMontant >= 0)
+    {
+        addIfValid(cId, tr("ID"), Qt::AlignCenter, 0.10, 80);
+        addIfValid(cClient, tr("Client"), Qt::AlignLeft | Qt::AlignVCenter, 0.30, 150);
+        addIfValid(cEtat, tr("État"), Qt::AlignLeft | Qt::AlignVCenter, 0.18, 100);
+        addIfValid(cDate, tr("Date"), Qt::AlignCenter, 0.18, 110);
+        addIfValid(cMontant, tr("Montant"), Qt::AlignRight | Qt::AlignVCenter, 0.24, 120);
     }
-    painter.setFont(QFont());
-    y += rowHeight;
-
-    // Draw table rows
-    for (int row = 0; row < model->rowCount(); ++row)
+    else
     {
-        x = left;
+        // Fallback: use headers from model
         for (int col = 0; col < model->columnCount(); ++col)
         {
-            QString cell = model->data(model->index(row, col)).toString();
-            painter.drawText(x, y, colWidth, rowHeight, Qt::AlignCenter, cell);
-            x += colWidth;
-        }
-        y += rowHeight;
-        if (y > writer.height() - rowHeight)
-        {
-            writer.newPage();
-            y = top + rowHeight;
+            QString hdr = model->headerData(col, Qt::Horizontal).toString();
+            if (!hdr.isEmpty())
+                hdr[0] = hdr[0].toUpper();
+            cols.append(Col{col, hdr, Qt::AlignLeft | Qt::AlignVCenter, 1.0 / qMax(1, model->columnCount()), 100});
         }
     }
 
+    // Normalize weights and compute column widths
+    double weightSum = 0.0;
+    for (const Col &c : cols)
+        weightSum += c.weight;
+    if (weightSum <= 0.0)
+        weightSum = 1.0;
+
+    QVector<int> colWidths;
+    colWidths.reserve(cols.size());
+    for (const Col &c : cols)
+    {
+        int w = qMax(int((c.weight / weightSum) * contentW), c.min);
+        colWidths.append(w);
+    }
+    // If total wider than content, scale down proportionally but keep mins
+    int totalW = 0;
+    for (int w : colWidths)
+        totalW += w;
+    if (totalW > contentW)
+    {
+        double scale = double(contentW) / double(totalW);
+        for (int i = 0; i < colWidths.size(); ++i)
+        {
+            colWidths[i] = qMax(int(colWidths[i] * scale), cols[i].min);
+        }
+        // Recompute total and clamp last column to fit exactly
+        totalW = 0;
+        for (int w : colWidths)
+            totalW += w;
+        if (totalW > contentW)
+            colWidths.last() -= (totalW - contentW);
+    }
+
+    // Header drawing lambda (repeated on each page)
+    auto drawHeader = [&](int yHeader) -> int
+    {
+        QFont headerFont = painter.font();
+        headerFont.setBold(true);
+        painter.setFont(headerFont);
+        QFontMetrics fm(headerFont);
+        int headerHeight = fm.height() + 2 * cellVPad;
+
+        int x = margin;
+        // background
+        painter.save();
+        painter.setBrush(QColor(240, 240, 240));
+        painter.setPen(Qt::NoPen);
+        painter.drawRect(margin, yHeader, totalW, headerHeight);
+        painter.restore();
+
+        painter.setPen(Qt::black);
+        for (int i = 0; i < cols.size(); ++i)
+        {
+            QRect rect(x, yHeader, colWidths[i], headerHeight);
+            painter.drawRect(rect);
+            painter.drawText(rect.adjusted(cellHPad, 0, -cellHPad, 0), Qt::AlignVCenter | Qt::AlignLeft, cols[i].header);
+            x += colWidths[i];
+        }
+        painter.setFont(QFont()); // reset to default (non-bold)
+        return headerHeight;
+    };
+
+    // Footer helper: page number
+    auto drawFooter = [&](int pageNumber)
+    {
+        QString footer = tr("Page %1").arg(pageNumber);
+        painter.drawText(margin, pageH - margin + 20, contentW, 40, Qt::AlignRight | Qt::AlignVCenter, footer);
+    };
+
+    int pageNumber = 1;
+    int headerHeight = drawHeader(y);
+    y += headerHeight;
+
+    // Body rows
+    QFont bodyFont = painter.font();
+    painter.setFont(bodyFont);
+    QFontMetrics fm(bodyFont);
+    QLocale locale = QLocale::system();
+
+    for (int row = 0; row < model->rowCount(); ++row)
+    {
+        // Compute row height based on wrapped text
+        int rowHeight = 0;
+        for (int i = 0; i < cols.size(); ++i)
+        {
+            QString text;
+            QVariant v = model->data(model->index(row, cols[i].idx));
+            if (cols[i].header.compare(tr("Montant")) == 0)
+                text = locale.toString(v.toDouble(), 'f', 2);
+            else
+                text = v.toString();
+
+            QRect br = fm.boundingRect(0, 0, colWidths[i] - 2 * cellHPad, 10000,
+                                       Qt::AlignLeft | Qt::TextWordWrap, text);
+            rowHeight = qMax(rowHeight, br.height() + 2 * cellVPad);
+        }
+        // Page break if needed
+        if (y + rowHeight > pageH - margin)
+        {
+            drawFooter(pageNumber);
+            writer.newPage();
+            pageNumber++;
+            y = margin;
+            headerHeight = drawHeader(y);
+            y += headerHeight;
+        }
+
+        // Draw row cells
+        int x = margin;
+        for (int i = 0; i < cols.size(); ++i)
+        {
+            QRect rect(x, y, colWidths[i], rowHeight);
+            painter.drawRect(rect);
+
+            // Alignment and formatting
+            Qt::Alignment align = cols[i].align;
+            QString text;
+            QVariant v = model->data(model->index(row, cols[i].idx));
+            if (cols[i].header.compare(tr("Date")) == 0)
+            {
+                QDate d = QDate::fromString(v.toString(), "yyyy-MM-dd");
+                text = d.isValid() ? d.toString("yyyy-MM-dd") : v.toString();
+                align = Qt::AlignCenter;
+            }
+            else if (cols[i].header.compare(tr("Montant")) == 0)
+            {
+                text = locale.toString(v.toDouble(), 'f', 2);
+                align = Qt::AlignRight | Qt::AlignVCenter;
+            }
+            else if (cols[i].header.compare(tr("ID")) == 0)
+            {
+                text = v.toString();
+                align = Qt::AlignCenter;
+            }
+            else
+            {
+                text = v.toString();
+            }
+
+            painter.drawText(rect.adjusted(cellHPad, 0, -cellHPad, 0),
+                             align | Qt::TextWordWrap, text);
+            x += colWidths[i];
+        }
+        y += rowHeight;
+    }
+
+    drawFooter(pageNumber);
     painter.end();
-    QMessageBox::information(this, "Export PDF", "Export PDF terminé avec succès !");
+    QMessageBox::information(this, tr("Export PDF"), tr("Export PDF terminé avec succès !"));
 }
 
 void CommandeWidget::addCommande()
