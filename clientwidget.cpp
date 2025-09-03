@@ -13,6 +13,8 @@
 #include <QtCharts/QBarSet>
 #include <QtCharts/QBarCategoryAxis>
 #include <QtCharts/QValueAxis>
+#include <QLocale>
+#include <QFontMetrics>
 
 ClientWidget::ClientWidget(QWidget *parent) : QWidget(parent),
                                               ui(new Ui::ClientWidget),
@@ -219,11 +221,10 @@ void ClientWidget::showStats()
 
 void ClientWidget::exportPDF()
 {
-    QString fileName = QFileDialog::getSaveFileName(this, "Export PDF", "", "*.pdf");
+    QString fileName = QFileDialog::getSaveFileName(this, tr("Exporter en PDF"), "", tr("Fichiers PDF (*.pdf)"));
     if (fileName.isEmpty())
         return;
-
-    if (!fileName.endsWith(".pdf"))
+    if (!fileName.endsWith(".pdf", Qt::CaseInsensitive))
         fileName += ".pdf";
 
     QPdfWriter writer(fileName);
@@ -233,62 +234,188 @@ void ClientWidget::exportPDF()
     QPainter painter(&writer);
     if (!painter.isActive())
     {
-        QMessageBox::warning(this, "Erreur", "Impossible de créer le PDF.");
+        QMessageBox::warning(this, tr("Erreur"), tr("Impossible de créer le PDF."));
         return;
     }
 
-    int margin = 80;
+    const int margin = 100; // ~0.33in at 300dpi
+    const int pageW = writer.width();
+    const int pageH = writer.height();
+    const int contentW = pageW - 2 * margin;
+    const int cellHPad = 12;
+    const int cellVPad = 10;
+
+    // Title
     int y = margin;
-
-    QFont titleFont("Helvetica", 14, QFont::Bold);
+    QFont titleFont = painter.font();
+    titleFont.setPointSize(titleFont.pointSize() + 4);
+    titleFont.setBold(true);
     painter.setFont(titleFont);
-    painter.drawText(margin, y, "Liste des Clients");
-    y += 80;
+    painter.drawText(margin, y, contentW, 60, Qt::AlignCenter, tr("Liste des clients"));
+    y += 70;
 
-    QFont headerFont("Helvetica", 10, QFont::Bold);
-    painter.setFont(headerFont);
-
-    // Draw headers
-    int x = margin;
-    for (int col = 0; col < model->columnCount(); ++col)
+    // Prepare columns (prefer known order; fallback to table order)
+    struct Col
     {
-        QString header = model->headerData(col, Qt::Horizontal).toString();
-        if (header == "nom")
-            painter.drawText(x, y, "Nom");
-        else if (header == "prenom")
-            painter.drawText(x, y, "Prénom");
-        else if (header == "adresse")
-            painter.drawText(x, y, "Adresse");
-        else if (header == "telephone")
-            painter.drawText(x, y, "Téléphone");
-        x += 200;
+        int idx;
+        QString header;
+        Qt::Alignment align;
+        double weight;
+        int min;
+    };
+    QList<Col> cols;
+    auto addIfValid = [&](int idx, const QString &header, Qt::Alignment align, double weight, int min)
+    {
+        if (idx >= 0)
+            cols.append(Col{idx, header, align, weight, min});
+    };
+
+    int cId = model->fieldIndex("id");
+    int cNom = model->fieldIndex("nom");
+    int cPrenom = model->fieldIndex("prenom");
+    int cAdresse = model->fieldIndex("adresse");
+    int cTel = model->fieldIndex("telephone");
+
+    if (cId >= 0 || cNom >= 0 || cPrenom >= 0 || cAdresse >= 0 || cTel >= 0)
+    {
+        addIfValid(cId, tr("ID"), Qt::AlignCenter, 0.10, 80);
+        addIfValid(cNom, tr("Nom"), Qt::AlignLeft | Qt::AlignVCenter, 0.22, 120);
+        addIfValid(cPrenom, tr("Prénom"), Qt::AlignLeft | Qt::AlignVCenter, 0.22, 120);
+        addIfValid(cAdresse, tr("Adresse"), Qt::AlignLeft | Qt::AlignVCenter, 0.28, 160);
+        addIfValid(cTel, tr("Téléphone"), Qt::AlignCenter, 0.18, 120);
     }
-
-    y += 80;
-
-    QFont cellFont("Helvetica", 9);
-    painter.setFont(cellFont);
-
-    // Draw table rows
-    for (int row = 0; row < model->rowCount(); ++row)
+    else
     {
-        x = margin;
+        // Fallback to whatever headers the model exposes
         for (int col = 0; col < model->columnCount(); ++col)
         {
-            QString data = model->data(model->index(row, col)).toString();
-            painter.drawText(x, y, data);
-            x += 200;
-        }
-        y += 80;
-
-        // handle page break
-        if (y > writer.height() - margin)
-        {
-            writer.newPage();
-            y = margin + 80;
+            QString hdr = model->headerData(col, Qt::Horizontal).toString();
+            if (!hdr.isEmpty())
+                hdr[0] = hdr[0].toUpper();
+            cols.append(Col{col, hdr, Qt::AlignLeft | Qt::AlignVCenter, 1.0 / qMax(1, model->columnCount()), 100});
         }
     }
 
+    // Normalize weights and compute widths
+    double weightSum = 0.0;
+    for (const Col &c : cols)
+        weightSum += c.weight;
+    if (weightSum <= 0.0)
+        weightSum = 1.0;
+
+    QVector<int> colWidths;
+    colWidths.reserve(cols.size());
+    for (const Col &c : cols)
+    {
+        int w = qMax(int((c.weight / weightSum) * contentW), c.min);
+        colWidths.append(w);
+    }
+    int totalW = 0;
+    for (int w : colWidths)
+        totalW += w;
+    if (totalW > contentW)
+    {
+        double scale = double(contentW) / double(totalW);
+        for (int i = 0; i < colWidths.size(); ++i)
+            colWidths[i] = qMax(int(colWidths[i] * scale), cols[i].min);
+        totalW = 0;
+        for (int w : colWidths)
+            totalW += w;
+        if (totalW > contentW)
+            colWidths.last() -= (totalW - contentW);
+    }
+
+    // Header drawer (re-used on each page)
+    auto drawHeader = [&](int yHeader) -> int
+    {
+        QFont headerFont = painter.font();
+        headerFont.setBold(true);
+        painter.setFont(headerFont);
+        QFontMetrics fm(headerFont);
+        int headerHeight = fm.height() + 2 * cellVPad;
+
+        int x = margin;
+        painter.save();
+        painter.setBrush(QColor(240, 240, 240));
+        painter.setPen(Qt::NoPen);
+        painter.drawRect(margin, yHeader, totalW, headerHeight);
+        painter.restore();
+
+        painter.setPen(Qt::black);
+        for (int i = 0; i < cols.size(); ++i)
+        {
+            QRect rect(x, yHeader, colWidths[i], headerHeight);
+            painter.drawRect(rect);
+            painter.drawText(rect.adjusted(cellHPad, 0, -cellHPad, 0), Qt::AlignVCenter | Qt::AlignLeft, cols[i].header);
+            x += colWidths[i];
+        }
+        painter.setFont(QFont()); // reset to normal
+        return headerHeight;
+    };
+
+    // Footer with page number
+    auto drawFooter = [&](int pageNumber)
+    {
+        painter.drawText(margin, pageH - margin + 20, contentW, 40,
+                         Qt::AlignRight | Qt::AlignVCenter, tr("Page %1").arg(pageNumber));
+    };
+
+    int pageNumber = 1;
+    int headerHeight = drawHeader(y);
+    y += headerHeight;
+
+    // Body
+    QFont bodyFont = painter.font();
+    painter.setFont(bodyFont);
+    QFontMetrics fm(bodyFont);
+
+    for (int row = 0; row < model->rowCount(); ++row)
+    {
+        // Determine row height based on wrapped content
+        int rowHeight = 0;
+        for (int i = 0; i < cols.size(); ++i)
+        {
+            QString text = model->data(model->index(row, cols[i].idx)).toString();
+            QRect br = fm.boundingRect(0, 0, colWidths[i] - 2 * cellHPad, 10000,
+                                       Qt::AlignLeft | Qt::TextWordWrap, text);
+            rowHeight = qMax(rowHeight, br.height() + 2 * cellVPad);
+        }
+
+        // Page break
+        if (y + rowHeight > pageH - margin)
+        {
+            drawFooter(pageNumber);
+            writer.newPage();
+            pageNumber++;
+            y = margin;
+            headerHeight = drawHeader(y);
+            y += headerHeight;
+        }
+
+        // Draw row cells
+        int x = margin;
+        for (int i = 0; i < cols.size(); ++i)
+        {
+            QRect rect(x, y, colWidths[i], rowHeight);
+            painter.drawRect(rect);
+
+            QString text = model->data(model->index(row, cols[i].idx)).toString();
+            Qt::Alignment align = cols[i].align;
+
+            // Specific alignment tweaks
+            if (cols[i].header.compare(tr("ID")) == 0)
+                align = Qt::AlignCenter;
+            else if (cols[i].header.compare(tr("Téléphone")) == 0)
+                align = Qt::AlignCenter;
+
+            painter.drawText(rect.adjusted(cellHPad, 0, -cellHPad, 0),
+                             align | Qt::TextWordWrap, text);
+            x += colWidths[i];
+        }
+        y += rowHeight;
+    }
+
+    drawFooter(pageNumber);
     painter.end();
-    QMessageBox::information(this, "Succès", "PDF exporté : " + fileName);
+    QMessageBox::information(this, tr("Succès"), tr("PDF exporté : %1").arg(fileName));
 }
