@@ -7,6 +7,12 @@
 #include <QPdfWriter>
 #include <QPainter>
 #include <QInputDialog>
+#include <QtCharts/QChartView>
+#include <QtCharts/QChart>
+#include <QtCharts/QBarSeries>
+#include <QtCharts/QBarSet>
+#include <QtCharts/QBarCategoryAxis>
+#include <QtCharts/QValueAxis>
 
 ClientWidget::ClientWidget(QWidget *parent) : QWidget(parent),
                                               ui(new Ui::ClientWidget),
@@ -174,7 +180,41 @@ void ClientWidget::sortClients(int index)
 // --------------------
 void ClientWidget::showStats()
 {
-    QMessageBox::information(this, "Statistiques", "Statistiques à implémenter (graphiques dynamiques).");
+    // Count clients by city (adresse)
+    QMap<QString, int> cityCount;
+    for (int row = 0; row < model->rowCount(); ++row)
+    {
+        QString city = model->data(model->index(row, model->fieldIndex("adresse"))).toString();
+        cityCount[city]++;
+    }
+
+    QBarSet *set = new QBarSet("Clients");
+    QStringList categories;
+    for (auto it = cityCount.begin(); it != cityCount.end(); ++it)
+    {
+        *set << it.value();
+        categories << it.key();
+    }
+
+    QBarSeries *series = new QBarSeries();
+    series->append(set);
+
+    QChart *chart = new QChart();
+    chart->addSeries(series);
+    chart->setTitle("Nombre de clients par ville");
+    chart->setAnimationOptions(QChart::SeriesAnimations);
+
+    QBarCategoryAxis *axisX = new QBarCategoryAxis();
+    axisX->append(categories);
+    chart->addAxis(axisX, Qt::AlignBottom);
+    series->attachAxis(axisX);
+
+    QValueAxis *axisY = new QValueAxis();
+    chart->addAxis(axisY, Qt::AlignLeft);
+    series->attachAxis(axisY);
+
+    ui->clientStatsChart->setChart(chart);
+    ui->clientStatsChart->setRenderHint(QPainter::Antialiasing);
 }
 
 void ClientWidget::exportPDF()
