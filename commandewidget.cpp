@@ -1,15 +1,22 @@
 #include "commandewidget.h"
 #include "ui_commande.h"
+
 #include <QSqlTableModel>
 #include <QSqlRecord>
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QDate>
+#include <QWidget>
+#include <QPushButton>
+#include <QComboBox>
+#include <QAbstractItemView>
+#include <QLineEdit>
 
 CommandeWidget::CommandeWidget(QWidget *parent)
     : QWidget(parent), ui(new Ui::CommandeWidget), model(nullptr)
 {
     ui->setupUi(this);
+    ui->searchDate->setDate(QDate::currentDate());
     setupModel();
     setupConnections();
 }
@@ -26,6 +33,7 @@ void CommandeWidget::setupModel()
     model->setTable("commande");
     model->setEditStrategy(QSqlTableModel::OnManualSubmit);
     model->select();
+
     ui->tableCommandes->setModel(model);
     ui->tableCommandes->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->tableCommandes->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -37,21 +45,81 @@ void CommandeWidget::setupConnections()
     connect(ui->btnAddCommande, &QPushButton::clicked, this, &CommandeWidget::addCommande);
     connect(ui->btnEditCommande, &QPushButton::clicked, this, &CommandeWidget::editCommande);
     connect(ui->btnDeleteCommande, &QPushButton::clicked, this, &CommandeWidget::deleteCommande);
+    connect(ui->btnSearch, &QPushButton::clicked, this, &CommandeWidget::searchCommandes);
+    connect(ui->sortCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &CommandeWidget::sortCommandes);
+    connect(ui->btnStats, &QPushButton::clicked, this, &CommandeWidget::showStats);
+    connect(ui->btnExportPDF, &QPushButton::clicked, this, &CommandeWidget::exportPDF);
+}
+
+void CommandeWidget::searchCommandes()
+{
+    QString filter;
+    QString client = ui->searchClient->text();
+    QString etat = ui->searchEtat->currentText();
+    QDate date = ui->searchDate->date();
+    QStringList filters;
+
+    if (!client.isEmpty())
+        filters << QString("client LIKE '%%" + client + "%%'");
+    if (etat != "Tout état")
+        filters << QString("etat = '%1'").arg(etat);
+    // Only filter by date if the user has changed it from the default
+    QDate defaultDate = QDate::currentDate();
+    if (date != defaultDate)
+        filters << QString("date = '%1'").arg(date.toString("yyyy-MM-dd"));
+
+    filter = filters.join(" AND ");
+    model->setFilter(filter);
+    model->select();
+}
+
+void CommandeWidget::sortCommandes(int index)
+{
+    switch (index)
+    {
+    case 1: // Client
+        model->setSort(model->fieldIndex("client"), Qt::AscendingOrder);
+        break;
+    case 2: // Date
+        model->setSort(model->fieldIndex("date"), Qt::AscendingOrder);
+        break;
+    case 3: // Montant
+        model->setSort(model->fieldIndex("montant"), Qt::DescendingOrder);
+        break;
+    default:
+        model->setSort(-1, Qt::AscendingOrder);
+    }
+    model->select();
+}
+
+void CommandeWidget::showStats()
+{
+    QMessageBox::information(this, "Statistiques", "Statistiques à implémenter (graphiques dynamiques).");
+}
+
+void CommandeWidget::exportPDF()
+{
+    QMessageBox::information(this, "Export PDF", "Export PDF à implémenter.");
 }
 
 void CommandeWidget::addCommande()
 {
-    // Simple dialog-based input for demonstration
     bool ok;
     QString client = QInputDialog::getText(this, "Client", "Nom du client:", QLineEdit::Normal, "", &ok);
     if (!ok || client.isEmpty())
         return;
-    QString etat = QInputDialog::getText(this, "Etat", "Etat:", QLineEdit::Normal, "", &ok);
+
+    QStringList etatOptions;
+    etatOptions << "En attente" << "Livrée" << "Annulée";
+    QString etat = QInputDialog::getItem(this, "Etat", "Etat:", etatOptions, 0, false, &ok);
     if (!ok || etat.isEmpty())
         return;
-    QString dateStr = QInputDialog::getText(this, "Date", "Date (YYYY-MM-DD):", QLineEdit::Normal, QDate::currentDate().toString("yyyy-MM-dd"), &ok);
+
+    QString dateStr = QInputDialog::getText(this, "Date", "Date (YYYY-MM-DD):",
+                                            QLineEdit::Normal, QDate::currentDate().toString("yyyy-MM-dd"), &ok);
     if (!ok || dateStr.isEmpty())
         return;
+
     double montant = QInputDialog::getDouble(this, "Montant", "Montant:", 0, 0, 1000000, 2, &ok);
     if (!ok)
         return;
@@ -61,6 +129,7 @@ void CommandeWidget::addCommande()
     record.setValue("etat", etat);
     record.setValue("date", dateStr);
     record.setValue("montant", montant);
+
     if (!model->insertRecord(-1, record) || !model->submitAll())
     {
         QMessageBox::warning(this, "Erreur", "Ajout échoué.");
@@ -77,18 +146,25 @@ void CommandeWidget::editCommande()
     QModelIndexList selection = ui->tableCommandes->selectionModel()->selectedRows();
     if (selection.isEmpty())
         return;
+
     int row = selection.first().row();
     QSqlRecord record = model->record(row);
+
     bool ok;
     QString client = QInputDialog::getText(this, "Client", "Nom du client:", QLineEdit::Normal, record.value("client").toString(), &ok);
     if (!ok || client.isEmpty())
         return;
-    QString etat = QInputDialog::getText(this, "Etat", "Etat:", QLineEdit::Normal, record.value("etat").toString(), &ok);
+
+    QStringList etatOptions;
+    etatOptions << "En attente" << "Livrée" << "Annulée";
+    QString etat = QInputDialog::getItem(this, "Etat", "Etat:", etatOptions, etatOptions.indexOf(record.value("etat").toString()), false, &ok);
     if (!ok || etat.isEmpty())
         return;
+
     QString dateStr = QInputDialog::getText(this, "Date", "Date (YYYY-MM-DD):", QLineEdit::Normal, record.value("date").toString(), &ok);
     if (!ok || dateStr.isEmpty())
         return;
+
     double montant = QInputDialog::getDouble(this, "Montant", "Montant:", record.value("montant").toDouble(), 0, 1000000, 2, &ok);
     if (!ok)
         return;
@@ -97,6 +173,7 @@ void CommandeWidget::editCommande()
     record.setValue("etat", etat);
     record.setValue("date", dateStr);
     record.setValue("montant", montant);
+
     if (!model->setRecord(row, record) || !model->submitAll())
     {
         QMessageBox::warning(this, "Erreur", "Modification échouée.");
@@ -113,6 +190,7 @@ void CommandeWidget::deleteCommande()
     QModelIndexList selection = ui->tableCommandes->selectionModel()->selectedRows();
     if (selection.isEmpty())
         return;
+
     int row = selection.first().row();
     if (QMessageBox::question(this, "Confirmation", "Supprimer cette commande ?") == QMessageBox::Yes)
     {

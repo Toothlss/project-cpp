@@ -19,6 +19,10 @@ private slots:
     void addCommande();
     void editCommande();
     void deleteCommande();
+    void searchCommandes();
+    void sortCommandes(int index);
+    void showStats();
+    void exportPDF();
 
 private:
     Ui::CommandeWidget *ui;
