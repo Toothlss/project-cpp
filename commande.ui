@@ -6,137 +6,142 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>600</width>
-    <height>400</height>
+    <width>1079</width>
+    <height>602</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Gestion des Commandes</string>
   </property>
-    <layout class="QVBoxLayout" name="verticalLayout">
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="searchSortLayout">
      <item>
-      <layout class="QHBoxLayout" name="searchSortLayout">
-      <item>
-       <widget class="QLineEdit" name="searchClient">
-        <property name="placeholderText">
+      <widget class="QLineEdit" name="searchClient">
+       <property name="placeholderText">
         <string>Recherche client...</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QComboBox" name="searchEtat">
-        <property name="editable">
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="searchEtat">
+       <property name="editable">
         <bool>true</bool>
-        </property>
-        <item>
+       </property>
+       <item>
         <property name="text">
          <string>Tout état</string>
         </property>
-        </item>
-        <item>
+       </item>
+       <item>
         <property name="text">
          <string>En attente</string>
         </property>
-        </item>
-        <item>
+       </item>
+       <item>
         <property name="text">
          <string>Livrée</string>
         </property>
-        </item>
-        <item>
+       </item>
+       <item>
         <property name="text">
          <string>Annulée</string>
         </property>
-        </item>
-       </widget>
-      </item>
-      <item>
-       <widget class="QDateEdit" name="searchDate">
-        <property name="calendarPopup">
-        <bool>true</bool>
-        </property>
-        <property name="displayFormat">
+       </item>
+      </widget>
+     </item>
+     <item>
+      <widget class="QDateEdit" name="searchDate">
+       <property name="displayFormat">
         <string>yyyy-MM-dd</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="btnSearch">
-        <property name="text">
+       </property>
+       <property name="calendarPopup">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnSearch">
+       <property name="text">
         <string>Rechercher</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QComboBox" name="sortCombo">
-        <item>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="sortCombo">
+       <item>
         <property name="text">
          <string>Trier par...</string>
         </property>
-        </item>
-        <item>
+       </item>
+       <item>
         <property name="text">
          <string>Client</string>
         </property>
-        </item>
-        <item>
+       </item>
+       <item>
         <property name="text">
          <string>Date</string>
         </property>
-        </item>
-        <item>
+       </item>
+       <item>
         <property name="text">
          <string>Montant</string>
         </property>
-        </item>
-       </widget>
-      </item>
-      </layout>
-     </item>
-     <item>
-      <widget class="QTableView" name="tableCommandes"/>
-     </item>
-     <item>
-      <layout class="QHBoxLayout" name="horizontalLayout">
-      <item>
-       <widget class="QPushButton" name="btnAddCommande">
-        <property name="text">
-        <string>Ajouter</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="btnEditCommande">
-        <property name="text">
-        <string>Modifier</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="btnDeleteCommande">
-        <property name="text">
-        <string>Supprimer</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="btnStats">
-        <property name="text">
-        <string>Statistiques</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="btnExportPDF">
-        <property name="text">
-        <string>Exporter PDF</string>
-        </property>
-       </widget>
-      </item>
-      </layout>
+       </item>
+      </widget>
      </item>
     </layout>
+   </item>
+   <item>
+    <widget class="QTableView" name="tableCommandes"/>
+   </item>
+    <item>
+     <widget class="QChartView" name="commandeStatsChart"/>
+    </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QPushButton" name="btnAddCommande">
+       <property name="text">
+        <string>Ajouter</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnEditCommande">
+       <property name="text">
+        <string>Modifier</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnDeleteCommande">
+       <property name="text">
+        <string>Supprimer</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnStats">
+       <property name="text">
+        <string>Statistiques</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnExportPDF">
+       <property name="text">
+        <string>Exporter PDF</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
  </widget>
+ <customwidgets>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

@@ -1,5 +1,11 @@
 #include "commandewidget.h"
 #include "ui_commande.h"
+#include <QtCharts/QChartView>
+#include <QtCharts/QChart>
+#include <QtCharts/QBarSeries>
+#include <QtCharts/QBarSet>
+#include <QtCharts/QBarCategoryAxis>
+#include <QtCharts/QValueAxis>
 
 #include <QSqlTableModel>
 #include <QSqlRecord>
@@ -94,7 +100,41 @@ void CommandeWidget::sortCommandes(int index)
 
 void CommandeWidget::showStats()
 {
-    QMessageBox::information(this, "Statistiques", "Statistiques à implémenter (graphiques dynamiques).");
+    // Count commandes by status
+    QMap<QString, int> statusCount;
+    for (int row = 0; row < model->rowCount(); ++row)
+    {
+        QString etat = model->data(model->index(row, model->fieldIndex("etat"))).toString();
+        statusCount[etat]++;
+    }
+
+    QBarSet *set = new QBarSet("Commandes");
+    QStringList categories;
+    for (auto it = statusCount.begin(); it != statusCount.end(); ++it)
+    {
+        *set << it.value();
+        categories << it.key();
+    }
+
+    QBarSeries *series = new QBarSeries();
+    series->append(set);
+
+    QChart *chart = new QChart();
+    chart->addSeries(series);
+    chart->setTitle("Nombre de commandes par état");
+    chart->setAnimationOptions(QChart::SeriesAnimations);
+
+    QBarCategoryAxis *axisX = new QBarCategoryAxis();
+    axisX->append(categories);
+    chart->addAxis(axisX, Qt::AlignBottom);
+    series->attachAxis(axisX);
+
+    QValueAxis *axisY = new QValueAxis();
+    chart->addAxis(axisY, Qt::AlignLeft);
+    series->attachAxis(axisY);
+
+    ui->commandeStatsChart->setChart(chart);
+    ui->commandeStatsChart->setRenderHint(QPainter::Antialiasing);
 }
 
 void CommandeWidget::exportPDF()
