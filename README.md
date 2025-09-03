@@ -28,8 +28,4 @@ Ouvrir `LMS.pro` avec Qt Creator, puis compiler et exécuter.
 
 ### Base de données
 
-Utilisation de SQLite intégrée via Qt SQL.
-
----
-
-Projet inspiré de "First working version".
+Utilisation de oracle DB .
