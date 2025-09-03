@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>CommandeWidget</class>
+ <widget class="QWidget" name="CommandeWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>600</width>
+    <height>400</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Gestion des Commandes</string>
+  </property>
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <item>
+      <widget class="QTableView" name="tableCommandes"/>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QPushButton" name="btnAddCommande">
+          <property name="text">
+            <string>Ajouter</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnEditCommande">
+          <property name="text">
+            <string>Modifier</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnDeleteCommande">
+          <property name="text">
+            <string>Supprimer</string>
+          </property>
+         </widget>
+        </item>
+      </layout>
+     </item>
+    </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
