@@ -13,36 +13,106 @@
   <property name="windowTitle">
    <string>Gestion des Clients</string>
   </property>
-    <layout class="QVBoxLayout" name="verticalLayout">
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="searchSortLayout">
      <item>
-      <widget class="QTableView" name="tableClients"/>
+    <widget class="QLineEdit" name="searchNom">
+     <property name="placeholderText">
+      <string>Recherche nom...</string>
+     </property>
+    </widget>
      </item>
      <item>
-      <layout class="QHBoxLayout" name="horizontalLayout">
-        <item>
-         <widget class="QPushButton" name="btnAddClient">
-          <property name="text">
-            <string>Ajouter</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="btnEditClient">
-          <property name="text">
-            <string>Modifier</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="btnDeleteClient">
-          <property name="text">
-            <string>Supprimer</string>
-          </property>
-         </widget>
-        </item>
-      </layout>
+    <widget class="QLineEdit" name="searchPrenom">
+     <property name="placeholderText">
+      <string>Recherche prénom...</string>
+     </property>
+    </widget>
+     </item>
+     <item>
+    <widget class="QLineEdit" name="searchAdresse">
+     <property name="placeholderText">
+      <string>Recherche adresse...</string>
+     </property>
+    </widget>
+     </item>
+     <item>
+    <widget class="QPushButton" name="btnSearch">
+     <property name="text">
+      <string>Rechercher</string>
+     </property>
+    </widget>
+     </item>
+     <item>
+    <widget class="QComboBox" name="sortCombo">
+     <item>
+      <property name="text">
+       <string>Trier par...</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>Nom</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>Prénom</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>Adresse</string>
+      </property>
+     </item>
+    </widget>
      </item>
     </layout>
+   </item>
+   <item>
+    <widget class="QTableView" name="tableClients"/>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+    <widget class="QPushButton" name="btnAddClient">
+     <property name="text">
+      <string>Ajouter</string>
+     </property>
+    </widget>
+     </item>
+     <item>
+    <widget class="QPushButton" name="btnEditClient">
+     <property name="text">
+      <string>Modifier</string>
+     </property>
+    </widget>
+     </item>
+     <item>
+    <widget class="QPushButton" name="btnDeleteClient">
+     <property name="text">
+      <string>Supprimer</string>
+     </property>
+    </widget>
+     </item>
+     <item>
+    <widget class="QPushButton" name="btnStats">
+     <property name="text">
+      <string>Statistiques</string>
+     </property>
+    </widget>
+     </item>
+     <item>
+    <widget class="QPushButton" name="btnExportPDF">
+     <property name="text">
+      <string>Exporter PDF</string>
+     </property>
+    </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
  </widget>
  <resources/>
  <connections/>

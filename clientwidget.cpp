@@ -1,12 +1,16 @@
 #include "clientwidget.h"
 #include "ui_client.h"
-#include <QSqlTableModel>
-#include <QSqlRecord>
+
 #include <QMessageBox>
+#include <QSqlRecord>
+#include <QFileDialog>
+#include <QPdfWriter>
+#include <QPainter>
 #include <QInputDialog>
 
-ClientWidget::ClientWidget(QWidget *parent)
-    : QWidget(parent), ui(new Ui::ClientWidget), model(nullptr)
+ClientWidget::ClientWidget(QWidget *parent) : QWidget(parent),
+                                              ui(new Ui::ClientWidget),
+                                              model(new QSqlTableModel(this))
 {
     ui->setupUi(this);
     setupModel();
@@ -15,20 +19,17 @@ ClientWidget::ClientWidget(QWidget *parent)
 
 ClientWidget::~ClientWidget()
 {
-    delete model;
     delete ui;
 }
 
+// --------------------
+// Setup
+// --------------------
 void ClientWidget::setupModel()
 {
-    model = new QSqlTableModel(this);
     model->setTable("client");
-    model->setEditStrategy(QSqlTableModel::OnManualSubmit);
     model->select();
     ui->tableClients->setModel(model);
-    ui->tableClients->setSelectionBehavior(QAbstractItemView::SelectRows);
-    ui->tableClients->setSelectionMode(QAbstractItemView::SingleSelection);
-    ui->tableClients->setEditTriggers(QAbstractItemView::NoEditTriggers);
 }
 
 void ClientWidget::setupConnections()
@@ -36,8 +37,15 @@ void ClientWidget::setupConnections()
     connect(ui->btnAddClient, &QPushButton::clicked, this, &ClientWidget::addClient);
     connect(ui->btnEditClient, &QPushButton::clicked, this, &ClientWidget::editClient);
     connect(ui->btnDeleteClient, &QPushButton::clicked, this, &ClientWidget::deleteClient);
+    connect(ui->btnSearch, &QPushButton::clicked, this, &ClientWidget::searchClients);
+    connect(ui->sortCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ClientWidget::sortClients);
+    connect(ui->btnStats, &QPushButton::clicked, this, &ClientWidget::showStats);
+    connect(ui->btnExportPDF, &QPushButton::clicked, this, &ClientWidget::exportPDF);
 }
 
+// --------------------
+// CRUD Slots
+// --------------------
 void ClientWidget::addClient()
 {
     bool ok;
@@ -108,21 +116,79 @@ void ClientWidget::editClient()
 
 void ClientWidget::deleteClient()
 {
-    QModelIndexList selection = ui->tableClients->selectionModel()->selectedRows();
-    if (selection.isEmpty())
-        return;
-    int row = selection.first().row();
-    if (QMessageBox::question(this, "Confirmation", "Supprimer ce client ?") == QMessageBox::Yes)
+    QModelIndex index = ui->tableClients->currentIndex();
+    if (!index.isValid())
     {
-        model->removeRow(row);
-        if (!model->submitAll())
-        {
-            QMessageBox::warning(this, "Erreur", "Suppression échouée.");
-            model->revertAll();
-        }
-        else
-        {
-            model->select();
-        }
+        QMessageBox::warning(this, "Erreur", "Sélectionnez un client à supprimer !");
+        return;
     }
+
+    model->removeRow(index.row());
+    if (!model->submitAll())
+    {
+        QMessageBox::warning(this, "Erreur", "Impossible de supprimer le client !");
+    }
+    model->select();
+}
+
+// --------------------
+// Search & Sort
+// --------------------
+void ClientWidget::searchClients()
+{
+    QStringList filters;
+
+    if (!ui->searchNom->text().isEmpty())
+        filters << QString("nom LIKE '%%1%'").arg(ui->searchNom->text());
+    if (!ui->searchPrenom->text().isEmpty())
+        filters << QString("prenom LIKE '%%1%'").arg(ui->searchPrenom->text());
+    if (!ui->searchAdresse->text().isEmpty())
+        filters << QString("adresse LIKE '%%1%'").arg(ui->searchAdresse->text());
+
+    model->setFilter(filters.join(" AND "));
+    model->select();
+}
+
+void ClientWidget::sortClients(int index)
+{
+    switch (index)
+    {
+    case 1: // Nom
+        model->setSort(model->fieldIndex("nom"), Qt::AscendingOrder);
+        break;
+    case 2: // Prénom
+        model->setSort(model->fieldIndex("prenom"), Qt::AscendingOrder);
+        break;
+    case 3: // Adresse
+        model->setSort(model->fieldIndex("adresse"), Qt::AscendingOrder);
+        break;
+    default:
+        model->setSort(-1, Qt::AscendingOrder);
+        break;
+    }
+    model->select();
+}
+
+// --------------------
+// Extra Features
+// --------------------
+void ClientWidget::showStats()
+{
+    QMessageBox::information(this, "Statistiques", "Statistiques à implémenter (graphiques dynamiques).");
+}
+
+void ClientWidget::exportPDF()
+{
+    QString fileName = QFileDialog::getSaveFileName(this, "Exporter en PDF", "", "Fichiers PDF (*.pdf)");
+    if (fileName.isEmpty())
+        return;
+
+    QPdfWriter writer(fileName);
+    QPainter painter(&writer);
+
+    painter.drawText(100, 100, "Export des clients - Exemple PDF");
+    // TODO: Add table export here
+    painter.end();
+
+    QMessageBox::information(this, "Export PDF", "Export PDF terminé avec succès !");
 }

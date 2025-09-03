@@ -19,6 +19,10 @@ private slots:
     void addClient();
     void editClient();
     void deleteClient();
+    void searchClients();
+    void sortClients(int index);
+    void showStats();
+    void exportPDF();
 
 private:
     Ui::ClientWidget *ui;
